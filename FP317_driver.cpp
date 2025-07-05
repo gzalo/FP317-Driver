@@ -168,7 +168,7 @@ void FP317_driver::setDot(int16_t x, int16_t y, bool state)
 
   // Step 6, enable pulse!!
   digitalWrite(disp.PIN_ENABLE, HIGH);
-  delayMicroseconds(250);
+  delayMicroseconds(280);
   digitalWrite(disp.PIN_ENABLE, LOW);
 }
 

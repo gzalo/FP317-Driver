@@ -9,8 +9,9 @@
 
 //===============================================================
 // UNCOMMENT THE LINE FOR THE MCU YOU'RE USING BELOW! (Don't uncomment more than one!)
-#define MCU_TYPE_ESP32_Mini_1
+//#define MCU_TYPE_ESP32_Mini_1
 //#define MCU_TYPE_ARDUINO_UNO_R3
+#define MCU_TYPE_ARDUINO_MEGA
 //===============================================================
 
 /*
@@ -121,6 +122,26 @@ typedef struct {
   3 & 7    16 (A2)
   4 & 8    17 (A3)
   */
+ #endif
+
+#ifdef MCU_TYPE_ARDUINO_MEGA
+  const int8_t PIN_U1_A0 = 47;
+  const int8_t PIN_U1_A1 = 37;
+  const int8_t PIN_U1_A2 = 23; 
+  const int8_t PIN_U1_B0 = 45;
+  const int8_t PIN_U1_B1 = 43;
+  const int8_t PIN_U1_DATA = 39;
+  const int8_t PIN_U2_A0 = 31;
+  const int8_t PIN_U2_A1 = 29;
+  const int8_t PIN_U2_A2 = 33;
+  const int8_t PIN_U2_B0 = 41;
+  const int8_t PIN_U2_B1 = 35;
+  
+  // Display module configuration table
+  FP317_module displays[] = {
+    {true, 1, 1, 25}, // Only one module
+  };
+
  #endif
 
 /* More on pin assignments, lots of technobabble here

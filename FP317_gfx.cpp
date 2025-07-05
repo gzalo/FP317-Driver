@@ -18,7 +18,7 @@
 
 #include "Arduino.h"
 #include <Adafruit_GFX.h>
-#include <FP317_driver.h>
+#include "FP317_driver.h"
 #include "FP317_gfx.h"
 
 // screen width and height is determined by code that runs in the FP317 driver's constructor, unlike other implementations of Adafruit_GFX.

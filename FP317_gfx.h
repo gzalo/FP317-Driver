@@ -12,7 +12,7 @@
 
 #include "Arduino.h"
 #include <Adafruit_GFX.h>
-#include <FP317_driver.h>
+#include "FP317_driver.h"
 
 class FP317_gfx : public Adafruit_GFX
 {
