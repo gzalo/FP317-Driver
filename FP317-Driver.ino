@@ -34,18 +34,23 @@ int lastDx = dx;
 int lastDy = dy;
 
 // IR codes
-#define IR_UP    0x3
-#define IR_DOWN  0x2
-#define IR_LEFT  0xE
-#define IR_RIGHT 0x1A
+#define IR_UP    0x58
+#define IR_DOWN  0x59
+#define IR_LEFT  0x5A
+#define IR_RIGHT 0x5B
+#define IR_ENTER 0x5C
+#define IR_DISC  0x3F
 
 
 unsigned long lastMoveTime = 0;
 unsigned long moveInterval = 200; // ms
+#define INITIAL_MOVE_INTERVAL 200
+#define MIN_MOVE_INTERVAL 60
+#define SPEED_DECREASE_PER_APPLE 10
 bool gameRunning = true;
 
 void setup() {
-  // put your setup code here, to run once:
+  Serial.begin(115200);
   gfx = new FP317_gfx();
   IrReceiver.begin(IR_RECEIVE_PIN, DISABLE_LED_FEEDBACK);
   gfx->clearDisplay();
@@ -73,6 +78,7 @@ void resetGame() {
   gfx->clearDisplay();
   drawInitialGame();
 
+  moveInterval = INITIAL_MOVE_INTERVAL;
   lastMoveTime = millis();
 }
 
@@ -80,9 +86,11 @@ void loop() {
   // IR input
   if (IrReceiver.decode()) {
     uint8_t cmd = IrReceiver.decodedIRData.command;
+    Serial.print("IR code: 0x");
+    Serial.println(cmd, HEX);
 
     if (!gameRunning) {
-      if (cmd == IR_UP || cmd == IR_DOWN || cmd == IR_LEFT || cmd == IR_RIGHT) {
+      if (cmd == IR_UP || cmd == IR_DOWN || cmd == IR_LEFT || cmd == IR_RIGHT || cmd == IR_ENTER || cmd == IR_DISC) {
         resetGame();
       }
       IrReceiver.resume();
@@ -151,6 +159,9 @@ void loop() {
       snakeLength++;
       placeApple();
       drawApple();
+      if (moveInterval > MIN_MOVE_INTERVAL) {
+        moveInterval -= SPEED_DECREASE_PER_APPLE;
+      }
     }
     drawCell(tailX, tailY, false); // erase tail only if not growing
 
@@ -193,14 +204,56 @@ void drawApple() {
   drawCell(appleX, appleY, true);
 }
 
+void spiralFill() {
+  int top = 0, bottom = GAME_ROWS - 1;
+  int left = 0, right = GAME_COLS - 1;
+
+  while (top <= bottom && left <= right) {
+    for (int x = left; x <= right; x++) {
+      drawCell(x, top, true);
+      delay(5);
+    }
+    top++;
+
+    for (int y = top; y <= bottom; y++) {
+      drawCell(right, y, true);
+      delay(5);
+    }
+    right--;
+
+    if (top <= bottom) {
+      for (int x = right; x >= left; x--) {
+        drawCell(x, bottom, true);
+        delay(5);
+      }
+      bottom--;
+    }
+
+    if (left <= right) {
+      for (int y = bottom; y >= top; y--) {
+        drawCell(left, y, true);
+        delay(5);
+      }
+      left++;
+    }
+  }
+}
+
 void gameOver() {
   gameRunning = false;
 
+  spiralFill();
+  delay(500);
+
   gfx->clearDisplay();
   gfx->setFont(&TomThumb);
-  gfx->setCursor(0,5);
   gfx->setLag(0);
-  gfx->clearDisplay();
-  gfx->print("LOSER!");
 
+  gfx->setCursor(0, 5);
+  gfx->print(snakeLength - 3);
+  delay(1000);
+
+  gfx->setCursor(0, 12);
+  gfx->print("puntos");
+  delay(2000);
 }

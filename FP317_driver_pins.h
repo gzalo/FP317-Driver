@@ -139,7 +139,7 @@ typedef struct {
   
   // Display module configuration table
   FP317_module displays[] = {
-    {true, 1, 1, 25}, // Only one module
+    {true, 1, 1, 27}, // Only one module
   };
 
  #endif
