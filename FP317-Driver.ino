@@ -24,7 +24,6 @@ FP317_gfx* gfx;
 #define IR_RIGHT 0x5B
 #define IR_ENTER 0x5C
 #define IR_DISC  0x3F
-#define IR_INPUT_DELAY_MS 160
 
 #define CELL_ON 1
 #define CELL_OFF 0
@@ -49,7 +48,6 @@ GameId activeGame = GAME_SNAKE;
 int lastScore = 0;
 bool lastWin = false;
 unsigned long gameOverShownAt = 0;
-unsigned long lastIrHandledAt = 0;
 bool screenCells[GAME_ROWS][GAME_COLS];
 bool frameCells[GAME_ROWS][GAME_COLS];
 bool screenReady = false;
@@ -110,26 +108,21 @@ void loop() {
     Serial.print("IR code: 0x");
     Serial.println(cmd, HEX);
 
-    unsigned long now = millis();
-    if (now - lastIrHandledAt >= IR_INPUT_DELAY_MS) {
-      lastIrHandledAt = now;
-
-      if (appMode == MODE_MENU) {
-        handleMenuInput(cmd);
-      } else if (appMode == MODE_GAME_OVER) {
-        handleGameOverInput(cmd);
-      } else if (cmd == IR_DISC) {
-        appMode = MODE_MENU;
-        drawMenu();
-      } else if (activeGame == GAME_SNAKE) {
-        handleSnakeInput(cmd);
-      } else if (activeGame == GAME_TETRIS) {
-        handleTetrisInput(cmd);
-      } else if (activeGame == GAME_FROGGER) {
-        handleFroggerInput(cmd);
-      } else if (activeGame == GAME_BOMBERMAN) {
-        handleBombermanInput(cmd);
-      }
+    if (appMode == MODE_MENU) {
+      handleMenuInput(cmd);
+    } else if (appMode == MODE_GAME_OVER) {
+      handleGameOverInput(cmd);
+    } else if (cmd == IR_DISC) {
+      appMode = MODE_MENU;
+      drawMenu();
+    } else if (activeGame == GAME_SNAKE) {
+      handleSnakeInput(cmd);
+    } else if (activeGame == GAME_TETRIS) {
+      handleTetrisInput(cmd);
+    } else if (activeGame == GAME_FROGGER) {
+      handleFroggerInput(cmd);
+    } else if (activeGame == GAME_BOMBERMAN) {
+      handleBombermanInput(cmd);
     }
 
     IrReceiver.resume();
@@ -332,9 +325,11 @@ void handleMenuInput(uint8_t cmd) {
   if (cmd == IR_LEFT || cmd == IR_UP) {
     selectedGame = (GameId)((selectedGame + GAME_COUNT - 1) % GAME_COUNT);
     drawMenu();
+    delay(120);
   } else if (cmd == IR_RIGHT || cmd == IR_DOWN) {
     selectedGame = (GameId)((selectedGame + 1) % GAME_COUNT);
     drawMenu();
+    delay(120);
   } else if (cmd == IR_ENTER) {
     startSelectedGame();
   }
@@ -557,7 +552,7 @@ int tetrisX = 3;
 int tetrisY = 0;
 int tetrisLines = 0;
 unsigned long lastTetrisTick = 0;
-unsigned long tetrisInterval = 520;
+unsigned long tetrisInterval = 420;
 
 bool tetrisBlockAt(int piece, int rot, int bx, int by) {
   rot &= 3;
@@ -665,7 +660,7 @@ void resetTetris() {
     }
   }
   tetrisLines = 0;
-  tetrisInterval = 520;
+  tetrisInterval = 420;
   lastTetrisTick = millis();
   clearScreen();
   spawnTetrisPiece();
@@ -679,9 +674,13 @@ void handleTetrisInput(uint8_t cmd) {
     tetrisX++;
   } else if (cmd == IR_UP && tetrisCanPlace(tetrisPiece, tetrisRot + 3, tetrisX, tetrisY)) {
     tetrisRot = (tetrisRot + 3) & 3;
-  } else if (cmd == IR_ENTER && tetrisCanPlace(tetrisPiece, tetrisRot + 1, tetrisX, tetrisY)) {
-    tetrisRot = (tetrisRot + 1) & 3;
   } else if (cmd == IR_DOWN) {
+    if (tetrisCanPlace(tetrisPiece, tetrisRot, tetrisX, tetrisY + 1)) {
+      tetrisY++;
+    } else {
+      lockTetrisPiece();
+    }
+  } else if (cmd == IR_ENTER) {
     while (tetrisCanPlace(tetrisPiece, tetrisRot, tetrisX, tetrisY + 1)) {
       tetrisY++;
     }

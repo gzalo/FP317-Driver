@@ -27,8 +27,8 @@ g++ -std=c++17 -pthread -Isim -I. sim/main.cpp -o sim/fp317_sim.exe -lSDL2
 
 Controls:
 
-- Arrow keys or `WASD`: move
-- `Enter` or `R`: restart after game over
+- Arrow keys or `WASD`: move; in Tetris, Up rotates and Down soft-drops one row
+- `Enter`: hard-drops a Tetris piece; `R` restarts after game over
 - `Q` or `Esc`: quit
 
 The simulator is meant for developing the display/game behavior. It does not
