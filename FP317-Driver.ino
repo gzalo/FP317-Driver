@@ -39,6 +39,8 @@ enum GameId {
   GAME_TETRIS,
   GAME_FROGGER,
   GAME_BOMBERMAN,
+  GAME_BREAKOUT,
+  GAME_INVADERS,
   GAME_COUNT
 };
 
@@ -92,6 +94,16 @@ struct Bomb;
 bool inBombBlastLine(int x, int y, Bomb* bomb);
 void drawBlastForBomb(Bomb* bomb);
 
+void resetBreakout();
+void handleBreakoutInput(uint8_t cmd);
+void updateBreakout();
+void drawBreakout();
+
+void resetInvaders();
+void handleInvadersInput(uint8_t cmd);
+void updateInvaders();
+void drawInvaders();
+
 void setup() {
   Serial.begin(115200);
   gfx = new FP317_gfx();
@@ -123,6 +135,10 @@ void loop() {
       handleFroggerInput(cmd);
     } else if (activeGame == GAME_BOMBERMAN) {
       handleBombermanInput(cmd);
+    } else if (activeGame == GAME_BREAKOUT) {
+      handleBreakoutInput(cmd);
+    } else if (activeGame == GAME_INVADERS) {
+      handleInvadersInput(cmd);
     }
 
     IrReceiver.resume();
@@ -140,6 +156,10 @@ void loop() {
     updateFrogger();
   } else if (activeGame == GAME_BOMBERMAN) {
     updateBomberman();
+  } else if (activeGame == GAME_BREAKOUT) {
+    updateBreakout();
+  } else if (activeGame == GAME_INVADERS) {
+    updateInvaders();
   }
 }
 
@@ -274,19 +294,22 @@ const char* gameName(GameId game) {
   if (game == GAME_SNAKE) return "SNAKE";
   if (game == GAME_TETRIS) return "TETRIS";
   if (game == GAME_FROGGER) return "FROG";
-  return "BOMB";
+  if (game == GAME_BOMBERMAN) return "BOMB";
+  if (game == GAME_BREAKOUT) return "BRK";
+  return "ALIEN";
 }
 
 void drawMenu() {
   clearScreen();
   drawCenteredText(gameName(selectedGame), 6);
 
+  const int menuIconX[GAME_COUNT] = {0, 5, 10, 14, 19, 24};
   for (int i = 0; i < GAME_COUNT; i++) {
-    int x = 2 + i * 7;
+    int x = menuIconX[i];
     drawIcon((GameId)i, x, 8);
     if (i == selectedGame) {
+      drawCell(x + 1, 13, true);
       drawCell(x + 2, 13, true);
-      drawCell(x + 3, 13, true);
     }
   }
   presentScreen();
@@ -298,7 +321,7 @@ void drawIcon(GameId game, int x, int y) {
     drawCell(x + 1, y + 2, true);
     drawCell(x + 2, y + 2, true);
     drawCell(x + 3, y + 1, true);
-    drawCell(x + 4, y + 1, true);
+    drawCell(x + 3, y + 2, true);
   } else if (game == GAME_TETRIS) {
     drawCell(x + 1, y + 0, true);
     drawCell(x + 1, y + 1, true);
@@ -310,14 +333,30 @@ void drawIcon(GameId game, int x, int y) {
     drawCell(x + 2, y + 1, true);
     drawCell(x + 1, y + 2, true);
     drawCell(x + 3, y + 2, true);
-    drawCell(x + 4, y + 2, true);
-  } else {
+  } else if (game == GAME_BOMBERMAN) {
     drawCell(x + 2, y + 0, true);
     drawCell(x + 1, y + 1, true);
     drawCell(x + 2, y + 1, true);
     drawCell(x + 3, y + 1, true);
     drawCell(x + 1, y + 2, true);
     drawCell(x + 3, y + 2, true);
+  } else if (game == GAME_BREAKOUT) {
+    drawCell(x + 0, y + 0, true);
+    drawCell(x + 1, y + 0, true);
+    drawCell(x + 2, y + 0, true);
+    drawCell(x + 3, y + 0, true);
+    drawCell(x + 1, y + 1, true);
+    drawCell(x + 0, y + 2, true);
+    drawCell(x + 1, y + 2, true);
+    drawCell(x + 2, y + 2, true);
+    drawCell(x + 3, y + 2, true);
+  } else {
+    drawCell(x + 0, y + 0, true);
+    drawCell(x + 2, y + 0, true);
+    drawCell(x + 0, y + 1, true);
+    drawCell(x + 1, y + 1, true);
+    drawCell(x + 2, y + 1, true);
+    drawCell(x + 1, y + 2, true);
   }
 }
 
@@ -345,8 +384,12 @@ void startSelectedGame() {
     resetTetris();
   } else if (activeGame == GAME_FROGGER) {
     resetFrogger();
-  } else {
+  } else if (activeGame == GAME_BOMBERMAN) {
     resetBomberman();
+  } else if (activeGame == GAME_BREAKOUT) {
+    resetBreakout();
+  } else {
+    resetInvaders();
   }
 }
 
@@ -1162,5 +1205,307 @@ void drawBomberman() {
   if (playerBlink) {
     drawCell(playerX, playerY, true);
   }
+  presentScreen();
+}
+
+// ---------------- Breakout ----------------
+
+#define BREAKOUT_BRICK_ROWS 4
+#define BREAKOUT_PADDLE_WIDTH 5
+
+bool breakoutBricks[BREAKOUT_BRICK_ROWS][GAME_COLS];
+int breakoutPaddleX = 12;
+int breakoutBallX = 14;
+int breakoutBallY = 12;
+int breakoutBallDx = 1;
+int breakoutBallDy = -1;
+int breakoutBricksLeft = 0;
+int breakoutScore = 0;
+bool breakoutLaunched = false;
+unsigned long lastBreakoutTick = 0;
+unsigned long breakoutInterval = 105;
+
+void resetBreakout() {
+  breakoutPaddleX = (GAME_COLS - BREAKOUT_PADDLE_WIDTH) / 2;
+  breakoutBallX = breakoutPaddleX + BREAKOUT_PADDLE_WIDTH / 2;
+  breakoutBallY = GAME_ROWS - 2;
+  breakoutBallDx = 1;
+  breakoutBallDy = -1;
+  breakoutScore = 0;
+  breakoutBricksLeft = 0;
+  breakoutLaunched = false;
+  breakoutInterval = 105;
+
+  for (int y = 0; y < BREAKOUT_BRICK_ROWS; y++) {
+    for (int x = 0; x < GAME_COLS; x++) {
+      breakoutBricks[y][x] = x > 0 && x < GAME_COLS - 1 && (x + y * 2) % 4 != 0;
+      if (breakoutBricks[y][x]) breakoutBricksLeft++;
+    }
+  }
+
+  lastBreakoutTick = millis();
+  drawBreakout();
+}
+
+void handleBreakoutInput(uint8_t cmd) {
+  if (cmd == IR_LEFT && breakoutPaddleX > 0) {
+    breakoutPaddleX--;
+  } else if (cmd == IR_RIGHT && breakoutPaddleX < GAME_COLS - BREAKOUT_PADDLE_WIDTH) {
+    breakoutPaddleX++;
+  } else if (cmd == IR_ENTER) {
+    breakoutLaunched = true;
+  } else {
+    return;
+  }
+
+  if (!breakoutLaunched) {
+    breakoutBallX = breakoutPaddleX + BREAKOUT_PADDLE_WIDTH / 2;
+  }
+  drawBreakout();
+}
+
+void updateBreakout() {
+  if (!breakoutLaunched || millis() - lastBreakoutTick < breakoutInterval) return;
+  lastBreakoutTick = millis();
+
+  int nextX = breakoutBallX + breakoutBallDx;
+  int nextY = breakoutBallY + breakoutBallDy;
+
+  if (nextX < 0 || nextX >= GAME_COLS) {
+    breakoutBallDx = -breakoutBallDx;
+    nextX = breakoutBallX + breakoutBallDx;
+  }
+  if (nextY < 0) {
+    breakoutBallDy = 1;
+    nextY = breakoutBallY + breakoutBallDy;
+  }
+
+  if (nextY >= 0 && nextY < BREAKOUT_BRICK_ROWS && breakoutBricks[nextY][nextX]) {
+    breakoutBricks[nextY][nextX] = false;
+    breakoutBricksLeft--;
+    breakoutScore++;
+    if (breakoutInterval > 55 && breakoutScore % 8 == 0) breakoutInterval -= 5;
+    breakoutBallDy = -breakoutBallDy;
+    nextY = breakoutBallY + breakoutBallDy;
+  }
+
+  if (breakoutBallDy > 0 && nextY == GAME_ROWS - 1 &&
+      nextX >= breakoutPaddleX && nextX < breakoutPaddleX + BREAKOUT_PADDLE_WIDTH) {
+    int hit = nextX - breakoutPaddleX;
+    if (hit <= 1) breakoutBallDx = -1;
+    else if (hit >= BREAKOUT_PADDLE_WIDTH - 2) breakoutBallDx = 1;
+    breakoutBallDy = -1;
+    nextY = breakoutBallY;
+  }
+
+  if (nextY >= GAME_ROWS) {
+    showGameOver(breakoutScore, false);
+    return;
+  }
+
+  breakoutBallX = nextX;
+  breakoutBallY = nextY;
+  if (breakoutBricksLeft == 0) {
+    showGameOver(breakoutScore, true);
+    return;
+  }
+  drawBreakout();
+}
+
+void drawBreakout() {
+  clearScreen();
+  for (int y = 0; y < BREAKOUT_BRICK_ROWS; y++) {
+    for (int x = 0; x < GAME_COLS; x++) {
+      if (breakoutBricks[y][x]) drawCell(x, y, true);
+    }
+  }
+  for (int x = 0; x < BREAKOUT_PADDLE_WIDTH; x++) {
+    drawCell(breakoutPaddleX + x, GAME_ROWS - 1, true);
+  }
+  drawCell(breakoutBallX, breakoutBallY, true);
+  presentScreen();
+}
+
+// ---------------- Space Invaders ----------------
+
+#define INVADER_ROWS 3
+#define INVADER_COLS 5
+
+bool invaders[INVADER_ROWS][INVADER_COLS];
+int invaderFleetX = 2;
+int invaderFleetY = 1;
+int invaderFleetDx = 1;
+int invaderShipX = 13;
+int invaderScore = 0;
+bool playerShotActive = false;
+int playerShotX = 0;
+int playerShotY = 0;
+bool invaderShotActive = false;
+int invaderShotX = 0;
+int invaderShotY = 0;
+unsigned long lastInvaderMove = 0;
+unsigned long lastPlayerShotMove = 0;
+unsigned long lastInvaderShotAt = 0;
+unsigned long lastInvaderShotMove = 0;
+unsigned long invaderMoveInterval = 300;
+
+int invaderCount() {
+  int count = 0;
+  for (int row = 0; row < INVADER_ROWS; row++) {
+    for (int col = 0; col < INVADER_COLS; col++) {
+      if (invaders[row][col]) count++;
+    }
+  }
+  return count;
+}
+
+bool invaderHitAt(int x, int y) {
+  for (int row = 0; row < INVADER_ROWS; row++) {
+    for (int col = 0; col < INVADER_COLS; col++) {
+      if (!invaders[row][col]) continue;
+      int left = invaderFleetX + col * 5;
+      int top = invaderFleetY + row * 3;
+      if (x >= left && x <= left + 2 && y >= top && y <= top + 1) {
+        invaders[row][col] = false;
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+void fireInvaderShot() {
+  int count = invaderCount();
+  if (count == 0) return;
+  int target = random(0, count);
+  for (int row = 0; row < INVADER_ROWS; row++) {
+    for (int col = 0; col < INVADER_COLS; col++) {
+      if (!invaders[row][col]) continue;
+      if (target-- == 0) {
+        invaderShotActive = true;
+        invaderShotX = invaderFleetX + col * 5 + 1;
+        invaderShotY = invaderFleetY + row * 3 + 2;
+        return;
+      }
+    }
+  }
+}
+
+void resetInvaders() {
+  for (int row = 0; row < INVADER_ROWS; row++) {
+    for (int col = 0; col < INVADER_COLS; col++) {
+      invaders[row][col] = true;
+    }
+  }
+  invaderFleetX = 2;
+  invaderFleetY = 1;
+  invaderFleetDx = 1;
+  invaderShipX = (GAME_COLS - 3) / 2;
+  invaderScore = 0;
+  playerShotActive = false;
+  invaderShotActive = false;
+  invaderMoveInterval = 300;
+  lastInvaderMove = millis();
+  lastPlayerShotMove = millis();
+  lastInvaderShotAt = millis();
+  lastInvaderShotMove = millis();
+  drawInvaders();
+}
+
+void handleInvadersInput(uint8_t cmd) {
+  if (cmd == IR_LEFT && invaderShipX > 0) {
+    invaderShipX--;
+  } else if (cmd == IR_RIGHT && invaderShipX < GAME_COLS - 3) {
+    invaderShipX++;
+  } else if (cmd == IR_ENTER && !playerShotActive) {
+    playerShotActive = true;
+    playerShotX = invaderShipX + 1;
+    playerShotY = GAME_ROWS - 3;
+    lastPlayerShotMove = millis();
+  } else {
+    return;
+  }
+  drawInvaders();
+}
+
+void updateInvaders() {
+  unsigned long now = millis();
+  bool redraw = false;
+
+  if (playerShotActive && now - lastPlayerShotMove >= 70) {
+    lastPlayerShotMove = now;
+    playerShotY--;
+    if (playerShotY < 0) {
+      playerShotActive = false;
+    } else if (invaderHitAt(playerShotX, playerShotY)) {
+      playerShotActive = false;
+      invaderScore += 10;
+      if (invaderMoveInterval > 115) invaderMoveInterval -= 10;
+      if (invaderCount() == 0) {
+        showGameOver(invaderScore, true);
+        return;
+      }
+    }
+    redraw = true;
+  }
+
+  if (now - lastInvaderMove >= invaderMoveInterval) {
+    lastInvaderMove = now;
+    if (invaderFleetX + invaderFleetDx < 0 || invaderFleetX + invaderFleetDx > 5) {
+      invaderFleetDx = -invaderFleetDx;
+      invaderFleetY++;
+      if (invaderFleetY + (INVADER_ROWS - 1) * 3 + 1 >= GAME_ROWS - 2) {
+        showGameOver(invaderScore, false);
+        return;
+      }
+    } else {
+      invaderFleetX += invaderFleetDx;
+    }
+    redraw = true;
+  }
+
+  if (!invaderShotActive && now - lastInvaderShotAt >= 850) {
+    lastInvaderShotAt = now;
+    fireInvaderShot();
+    redraw = true;
+  }
+
+  if (invaderShotActive && now - lastInvaderShotMove >= 105) {
+    lastInvaderShotMove = now;
+    invaderShotY++;
+    if (invaderShotY >= GAME_ROWS) {
+      invaderShotActive = false;
+    } else if (invaderShotY >= GAME_ROWS - 2 &&
+               invaderShotX >= invaderShipX && invaderShotX < invaderShipX + 3) {
+      showGameOver(invaderScore, false);
+      return;
+    }
+    redraw = true;
+  }
+
+  if (redraw) drawInvaders();
+}
+
+void drawInvaders() {
+  clearScreen();
+  for (int row = 0; row < INVADER_ROWS; row++) {
+    for (int col = 0; col < INVADER_COLS; col++) {
+      if (!invaders[row][col]) continue;
+      int x = invaderFleetX + col * 5;
+      int y = invaderFleetY + row * 3;
+      drawCell(x, y, true);
+      drawCell(x + 2, y, true);
+      drawCell(x, y + 1, true);
+      drawCell(x + 1, y + 1, true);
+      drawCell(x + 2, y + 1, true);
+    }
+  }
+
+  drawCell(invaderShipX + 1, GAME_ROWS - 2, true);
+  drawCell(invaderShipX, GAME_ROWS - 1, true);
+  drawCell(invaderShipX + 1, GAME_ROWS - 1, true);
+  drawCell(invaderShipX + 2, GAME_ROWS - 1, true);
+  if (playerShotActive) drawCell(playerShotX, playerShotY, true);
+  if (invaderShotActive) drawCell(invaderShotX, invaderShotY, true);
   presentScreen();
 }
