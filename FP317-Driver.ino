@@ -50,6 +50,7 @@ GameId activeGame = GAME_SNAKE;
 int lastScore = 0;
 bool lastWin = false;
 unsigned long gameOverShownAt = 0;
+unsigned long menuInputLockedUntil = 0;
 bool screenCells[GAME_ROWS][GAME_COLS];
 bool frameCells[GAME_ROWS][GAME_COLS];
 bool screenReady = false;
@@ -218,10 +219,12 @@ bool tinyGlyph(char c, uint8_t rows[5]) {
   switch (c) {
     case 'A': rows[0] = 0b010; rows[1] = 0b101; rows[2] = 0b111; rows[3] = 0b101; rows[4] = 0b101; return true;
     case 'B': rows[0] = 0b110; rows[1] = 0b101; rows[2] = 0b110; rows[3] = 0b101; rows[4] = 0b110; return true;
+    case 'C': rows[0] = 0b111; rows[1] = 0b100; rows[2] = 0b100; rows[3] = 0b100; rows[4] = 0b111; return true;
     case 'E': rows[0] = 0b111; rows[1] = 0b100; rows[2] = 0b110; rows[3] = 0b100; rows[4] = 0b111; return true;
     case 'F': rows[0] = 0b111; rows[1] = 0b100; rows[2] = 0b110; rows[3] = 0b100; rows[4] = 0b100; return true;
     case 'G': rows[0] = 0b111; rows[1] = 0b100; rows[2] = 0b101; rows[3] = 0b101; rows[4] = 0b111; return true;
     case 'I': rows[0] = 0b111; rows[1] = 0b010; rows[2] = 0b010; rows[3] = 0b010; rows[4] = 0b111; return true;
+    case 'J': rows[0] = 0b001; rows[1] = 0b001; rows[2] = 0b001; rows[3] = 0b101; rows[4] = 0b010; return true;
     case 'K': rows[0] = 0b101; rows[1] = 0b101; rows[2] = 0b110; rows[3] = 0b101; rows[4] = 0b101; return true;
     case 'L': rows[0] = 0b100; rows[1] = 0b100; rows[2] = 0b100; rows[3] = 0b100; rows[4] = 0b111; return true;
     case 'M': rows[0] = 0b101; rows[1] = 0b111; rows[2] = 0b111; rows[3] = 0b101; rows[4] = 0b101; return true;
@@ -230,7 +233,9 @@ bool tinyGlyph(char c, uint8_t rows[5]) {
     case 'R': rows[0] = 0b110; rows[1] = 0b101; rows[2] = 0b110; rows[3] = 0b101; rows[4] = 0b101; return true;
     case 'S': rows[0] = 0b111; rows[1] = 0b100; rows[2] = 0b111; rows[3] = 0b001; rows[4] = 0b111; return true;
     case 'T': rows[0] = 0b111; rows[1] = 0b010; rows[2] = 0b010; rows[3] = 0b010; rows[4] = 0b010; return true;
+    case 'U': rows[0] = 0b101; rows[1] = 0b101; rows[2] = 0b101; rows[3] = 0b101; rows[4] = 0b111; return true;
     case 'W': rows[0] = 0b101; rows[1] = 0b101; rows[2] = 0b111; rows[3] = 0b111; rows[4] = 0b101; return true;
+    case 'Y': rows[0] = 0b101; rows[1] = 0b101; rows[2] = 0b010; rows[3] = 0b010; rows[4] = 0b010; return true;
     case ' ': return true;
     case '0': rows[0] = 0b111; rows[1] = 0b101; rows[2] = 0b101; rows[3] = 0b101; rows[4] = 0b111; return true;
     case '1': rows[0] = 0b010; rows[1] = 0b110; rows[2] = 0b010; rows[3] = 0b010; rows[4] = 0b111; return true;
@@ -361,6 +366,10 @@ void drawIcon(GameId game, int x, int y) {
 }
 
 void handleMenuInput(uint8_t cmd) {
+  if ((long)(millis() - menuInputLockedUntil) < 0) {
+    return;
+  }
+
   if (cmd == IR_LEFT || cmd == IR_UP) {
     selectedGame = (GameId)((selectedGame + GAME_COUNT - 1) % GAME_COUNT);
     drawMenu();
@@ -412,10 +421,12 @@ void handleGameOverInput(uint8_t cmd) {
 
   if (cmd == IR_ENTER) {
     appMode = MODE_MENU;
+    menuInputLockedUntil = millis() + 700;
     drawMenu();
   } else if (cmd == IR_LEFT || cmd == IR_RIGHT || cmd == IR_UP ||
              cmd == IR_DOWN || cmd == IR_DISC) {
     appMode = MODE_MENU;
+    menuInputLockedUntil = millis() + 700;
     drawMenu();
   }
 }
@@ -1210,8 +1221,9 @@ void drawBomberman() {
 
 // ---------------- Breakout ----------------
 
-#define BREAKOUT_BRICK_ROWS 4
+#define BREAKOUT_BRICK_ROWS 7
 #define BREAKOUT_PADDLE_WIDTH 5
+#define BREAKOUT_PADDLE_STEP 2
 
 bool breakoutBricks[BREAKOUT_BRICK_ROWS][GAME_COLS];
 int breakoutPaddleX = 12;
@@ -1224,6 +1236,41 @@ int breakoutScore = 0;
 bool breakoutLaunched = false;
 unsigned long lastBreakoutTick = 0;
 unsigned long breakoutInterval = 105;
+
+bool breakoutGlyph(char c, uint8_t rows[3]) {
+  for (int i = 0; i < 3; i++) rows[i] = 0;
+
+  switch (c) {
+    case 'A': rows[0] = 0b010; rows[1] = 0b101; rows[2] = 0b111; return true;
+    case 'B': rows[0] = 0b110; rows[1] = 0b111; rows[2] = 0b110; return true;
+    case 'C': rows[0] = 0b111; rows[1] = 0b100; rows[2] = 0b111; return true;
+    case 'E': rows[0] = 0b111; rows[1] = 0b110; rows[2] = 0b111; return true;
+    case 'I': rows[0] = 0b111; rows[1] = 0b010; rows[2] = 0b111; return true;
+    case 'J': rows[0] = 0b001; rows[1] = 0b001; rows[2] = 0b110; return true;
+    case 'R': rows[0] = 0b110; rows[1] = 0b111; rows[2] = 0b101; return true;
+    case 'S': rows[0] = 0b111; rows[1] = 0b110; rows[2] = 0b111; return true;
+    case 'U': rows[0] = 0b101; rows[1] = 0b101; rows[2] = 0b111; return true;
+    case 'Y': rows[0] = 0b101; rows[1] = 0b010; rows[2] = 0b010; return true;
+  }
+  return false;
+}
+
+void addBreakoutTextBricks(const char* text, int x, int y) {
+  while (*text) {
+    uint8_t rows[3];
+    breakoutGlyph(*text++, rows);
+    for (int row = 0; row < 3; row++) {
+      for (int col = 0; col < 3; col++) {
+        if ((rows[row] & (1 << (2 - col))) &&
+            x + col >= 0 && x + col < GAME_COLS &&
+            y + row >= 0 && y + row < BREAKOUT_BRICK_ROWS) {
+          breakoutBricks[y + row][x + col] = true;
+        }
+      }
+    }
+    x += 4;
+  }
+}
 
 void resetBreakout() {
   breakoutPaddleX = (GAME_COLS - BREAKOUT_PADDLE_WIDTH) / 2;
@@ -1238,7 +1285,15 @@ void resetBreakout() {
 
   for (int y = 0; y < BREAKOUT_BRICK_ROWS; y++) {
     for (int x = 0; x < GAME_COLS; x++) {
-      breakoutBricks[y][x] = x > 0 && x < GAME_COLS - 1 && (x + y * 2) % 4 != 0;
+      breakoutBricks[y][x] = false;
+    }
+  }
+
+  addBreakoutTextBricks("CYBER", (GAME_COLS - textWidth("CYBER")) / 2, 0);
+  addBreakoutTextBricks("CIRUJAS", (GAME_COLS - textWidth("CIRUJAS")) / 2, 4);
+
+  for (int y = 0; y < BREAKOUT_BRICK_ROWS; y++) {
+    for (int x = 0; x < GAME_COLS; x++) {
       if (breakoutBricks[y][x]) breakoutBricksLeft++;
     }
   }
@@ -1249,9 +1304,13 @@ void resetBreakout() {
 
 void handleBreakoutInput(uint8_t cmd) {
   if (cmd == IR_LEFT && breakoutPaddleX > 0) {
-    breakoutPaddleX--;
+    breakoutPaddleX -= BREAKOUT_PADDLE_STEP;
+    if (breakoutPaddleX < 0) breakoutPaddleX = 0;
   } else if (cmd == IR_RIGHT && breakoutPaddleX < GAME_COLS - BREAKOUT_PADDLE_WIDTH) {
-    breakoutPaddleX++;
+    breakoutPaddleX += BREAKOUT_PADDLE_STEP;
+    if (breakoutPaddleX > GAME_COLS - BREAKOUT_PADDLE_WIDTH) {
+      breakoutPaddleX = GAME_COLS - BREAKOUT_PADDLE_WIDTH;
+    }
   } else if (cmd == IR_ENTER) {
     breakoutLaunched = true;
   } else {
@@ -1328,7 +1387,7 @@ void drawBreakout() {
 
 // ---------------- Space Invaders ----------------
 
-#define INVADER_ROWS 3
+#define INVADER_ROWS 1
 #define INVADER_COLS 5
 
 bool invaders[INVADER_ROWS][INVADER_COLS];
